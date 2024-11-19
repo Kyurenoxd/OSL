@@ -96,7 +96,6 @@ function createWindow() {
     transparent: true,
     autoHideMenuBar: true,
     show: false,
-    icon: path.join(__dirname, '../public/logo.png'),
     title: 'OSL',
     titleBarStyle: 'hidden',
     titleBarOverlay: false,
@@ -112,10 +111,19 @@ function createWindow() {
   mainWindow.removeMenu()
 
   if (process.platform === 'win32') {
-    app.setAppUserModelId('com.osl.launcher')
+    app.setAppUserModelId('com.osl.app')
     mainWindow.setThumbarButtons([])
-    mainWindow.setOverlayIcon(null, 'OSL')
-    mainWindow.setTitle('OSL - OsuServerLauncher')
+    try {
+      const iconPath = path.join(__dirname, '../src/assets/images/icon.ico')
+      if (require('fs').existsSync(iconPath)) {
+        mainWindow.setIcon(iconPath)
+      } else {
+        console.warn('Icon file not found:', iconPath)
+      }
+    } catch (error) {
+      console.error('Error setting window icon:', error)
+    }
+    mainWindow.setTitle('OSL')
   }
 
   // Предотвращение открытия DevTools

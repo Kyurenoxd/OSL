@@ -11,4 +11,15 @@ export interface Server {
   server_ip: string
   server_port: string
   server_key?: string
+}
+
+export interface ServerPlaytime {
+  serverId: number;
+  serverName: string;
+  serverImage: string;
+  totalPlaytime: number;
+  lastSession: {
+    start: string;
+    end?: string;
+  };
 } 

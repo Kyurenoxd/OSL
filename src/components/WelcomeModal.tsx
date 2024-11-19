@@ -1,5 +1,6 @@
 import React from 'react';
 import { useTheme } from '../contexts/ThemeContext';
+import logoImage from '../assets/images/logo.png';
 
 interface WelcomeModalProps {
   isOpen: boolean;
@@ -34,7 +35,7 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ isOpen, onClose, onSelectPa
         </div>
 
         <div className="flex flex-col items-center space-y-6 mt-4">
-          <img src="/logo.png" alt="OSL" className="w-24 h-24 animate-bounce" />
+          <img src={logoImage} alt="OSL" className="w-24 h-24 animate-bounce" />
           <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-500 to-accent bg-clip-text text-transparent">
             Welcome to OSL!
           </h1>

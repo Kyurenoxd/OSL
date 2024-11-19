@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
+import iconGif from '../assets/images/icon.gif';
 
 interface SettingsProps {
   isOpen: boolean;
@@ -238,7 +239,7 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose, favoritesSort, set
           <span className="text-lg font-semibold">powered by:</span>
           <span className="text-xl font-bold">KyurenoXD</span>
           <img 
-            src="/icon.gif" 
+            src={iconGif} 
             alt="KyurenoXD" 
             className="w-8 h-8 rounded-full"
             style={{ imageRendering: 'pixelated' }}

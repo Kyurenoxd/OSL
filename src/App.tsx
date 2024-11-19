@@ -1,11 +1,10 @@
 import { useState, useEffect } from 'react'
 import type { Server } from './types/Server'
-import type { ServerPlaytime } from './types/PlaytimeStats'
 import Settings from './components/Settings'
 import WelcomeModal from './components/WelcomeModal'
 import { ThemeProvider, useTheme } from './contexts/ThemeContext'
-import PlaytimeStats from './components/PlaytimeStats'
 import FAQ from './components/FAQ'
+import logoImage from './assets/images/logo.png'
 
 // Создаем отдельный компонент для основного содержимого
 function AppContent() {
@@ -44,9 +43,8 @@ function AppContent() {
   const [autoClose, setAutoClose] = useState(() => {
     return localStorage.getItem('autoClose') === 'true';
   });
-  const [isStatsOpen, setIsStatsOpen] = useState(false);
-  const [isSessionActive, setIsSessionActive] = useState(false);
   const [isFAQOpen, setIsFAQOpen] = useState(false);
+  const [isSessionActive, setIsSessionActive] = useState(false);
 
   useEffect(() => {
     localStorage.setItem('autoClose', autoClose.toString());
@@ -67,6 +65,12 @@ function AppContent() {
       .then(data => {
         console.log('Received data:', data)
         setServers(data)
+        const updatedFavorites = favorites.map(fav => {
+          const updatedServer = data.find((s: Server) => s.id === fav.id);
+          return updatedServer || fav;
+        });
+        setFavorites(updatedFavorites);
+        localStorage.setItem('favoriteServers', JSON.stringify(updatedFavorites));
         setLoading(false)
       })
       .catch(err => {
@@ -119,79 +123,20 @@ function AppContent() {
       const server = servers.find(s => s.name === selectedServerDetails.name);
       if (!server) throw new Error('Server not found');
 
-      // Получаем текущие статистики
-      const stats: ServerPlaytime[] = JSON.parse(localStorage.getItem('playtimeStats') || '[]');
-      const now = new Date().toISOString();
-      
-      // Ограничиваем историю до 5 серверов
-      if (stats.length >= 5 && !stats.find(s => s.serverId === server.id)) {
-        stats.sort((a, b) => b.totalPlaytime - a.totalPlaytime);
-        stats.pop();
-      }
-
-      // Находим или создаем статистику для сервера
-      let serverStats = stats.find(s => s.serverId === server.id);
-      if (!serverStats) {
-        serverStats = {
-          serverId: server.id,
-          serverName: server.name,
-          serverImage: server.image ? (
-            server.image.startsWith('http') ? server.image : `https://${server.image}`
-          ) : '/logo.png',
-          totalPlaytime: 0,
-          lastSession: {
-            start: now
-          }
-        };
-        stats.push(serverStats);
-      } else {
-        // Обновляем имя и изображение сервера
-        serverStats.serverName = server.name;
-        serverStats.serverImage = server.image ? (
-          server.image.startsWith('http') ? server.image : `https://${server.image}`
-        ) : '/logo.png';
-        
-        // Если есть незавершенная сессия, сохраняем накопленное время
-        if (serverStats.lastSession && !serverStats.lastSession.end) {
-          const sessionStart = new Date(serverStats.lastSession.start);
-          const sessionEnd = new Date();
-          const playedMinutes = Math.floor((sessionEnd.getTime() - sessionStart.getTime()) / 60000);
-          serverStats.totalPlaytime += playedMinutes;
-        }
-        // Начинаем новую сессию
-        serverStats.lastSession = {
-          start: now
-        };
-      }
-
-      // Сохраняем обновленную статистику
-      localStorage.setItem('playtimeStats', JSON.stringify(stats));
-
       // Устанавливаем статус активной сессии
       setIsSessionActive(true);
 
-      // Запускаем osu! и ждем завершения процесса
+      // Launch osu! and wait for process completion
       await window.electron.launchOsu([osuPath], server.devserver);
       
-      // После завершения процесса обновляем статистику и статус
+      // После завершения процесса обновляем статус
       setIsSessionActive(false);
-      
-      // Завершаем текущую сессию и сохраняем время
-      const endStats = JSON.parse(localStorage.getItem('playtimeStats') || '[]');
-      const currentServerStats = endStats.find((s: ServerPlaytime) => s.serverId === server.id);
-      if (currentServerStats && currentServerStats.lastSession && !currentServerStats.lastSession.end) {
-        const sessionStart = new Date(currentServerStats.lastSession.start);
-        const sessionEnd = new Date();
-        const playedMinutes = Math.floor((sessionEnd.getTime() - sessionStart.getTime()) / 60000);
-        currentServerStats.totalPlaytime += playedMinutes;
-        currentServerStats.lastSession.end = sessionEnd.toISOString();
-        localStorage.setItem('playtimeStats', JSON.stringify(endStats));
-      }
       
       if (autoClose) {
         window.electron.close();
       }
     } catch (error) {
+      // В случае ошибки также обновляем статус
       setIsSessionActive(false);
       console.error('Failed to launch osu:', error);
       alert('Failed to launch osu! Please check the path and try again.');
@@ -249,7 +194,7 @@ function AppContent() {
   }
 
   return (
-    <div className="h-screen w-screen bg-primary text-primary flex flex-col overflow-hidden">
+    <div className={`h-screen w-screen ${theme === 'dark' ? 'bg-[#0b0c0b]' : 'bg-white'} text-primary flex flex-col overflow-hidden`}>
       {/* Кнопки управления окном в правом верхнем углу */}
       <div className="fixed top-0 right-0 flex items-center z-50">
         <button
@@ -273,9 +218,11 @@ function AppContent() {
       {/* Основной контент */}
       <div className="flex-1 relative">
         {/* Боковая панель - обновляем отступ сверху */}
-        <div className="fixed left-0 top-0 h-[calc(100vh-60px)] w-64 bg-secondary border-r border-custom p-4">
+        <div className={`fixed left-0 top-0 h-[calc(100vh-60px)] w-64 ${
+          theme === 'dark' ? 'bg-[#0b0c0b]' : 'bg-white'
+        } border-r border-custom p-4`}>
           <div className="flex items-center mb-8">
-            <img src="/logo.png" alt="OSL" className="w-12 h-12" />
+            <img src={logoImage} alt="OSL" className="w-12 h-12" />
             <div className="ml-3">
               <h1 className="text-xl font-bold text-primary">OSL</h1>
               <p className="text-sm text-secondary">OsuListLauncher</p>
@@ -287,8 +234,8 @@ function AppContent() {
               onClick={() => openInBrowser('https://osu-server-list.com/')}
               className={`w-full text-left px-4 py-2 transition-colors duration-200 ${
                 theme === 'dark'
-                  ? 'bg-[#1a1a1a] hover:bg-[#252525] text-white'
-                  : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                  ? 'bg-[#0b0c0b] hover:bg-[#252525] text-white'
+                  : 'bg-white hover:bg-gray-100 text-gray-700'
               }`}
             >
               osu-server-list.com
@@ -312,12 +259,6 @@ function AppContent() {
               Settings
             </button>
             <button 
-              onClick={() => setIsStatsOpen(true)} 
-              className="w-full text-left px-4 py-2 hover-bg rounded block"
-            >
-              Playtime Stats
-            </button>
-            <button 
               onClick={() => setIsFAQOpen(true)} 
               className="w-full text-left px-4 py-2 hover-bg rounded block"
             >
@@ -327,7 +268,9 @@ function AppContent() {
         </div>
 
         {/* Панель сортировки и фильтрации - обновляем отступ слева */}
-        <div className="ml-64 pt-4 px-6 flex items-center space-x-4 border-b border-custom pb-4">
+        <div className={`ml-64 pt-4 px-6 flex items-center space-x-4 border-b border-custom pb-4 ${
+          theme === 'dark' ? 'bg-[#0b0c0b]' : 'bg-white'
+        }`}>
           <div className="flex items-center space-x-2">
             <span className="text-gray-400">Sort by:</span>
             <button 
@@ -336,8 +279,8 @@ function AppContent() {
                 sortBy === 'votes' 
                   ? 'bg-purple-500 bg-opacity-20 text-purple-500' 
                   : theme === 'dark' 
-                    ? 'bg-[#1a1a1a] hover:bg-[#252525] text-white'
-                    : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                    ? 'bg-[#0b0c0b] hover:bg-[#252525] text-white'
+                    : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200'
               }`}
             >
               Votes
@@ -348,8 +291,8 @@ function AppContent() {
                 sortBy === 'players' 
                   ? 'bg-green-500 bg-opacity-20 text-green-500' 
                   : theme === 'dark'
-                    ? 'bg-[#1a1a1a] hover:bg-[#252525] text-white'
-                    : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                    ? 'bg-[#0b0c0b] hover:bg-[#252525] text-white'
+                    : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200'
               }`}
             >
               Players
@@ -362,8 +305,8 @@ function AppContent() {
               showFavorites 
                 ? 'bg-yellow-500 bg-opacity-20 text-yellow-500' 
                 : theme === 'dark'
-                  ? 'bg-[#1a1a1a] hover:bg-[#252525] text-white'
-                  : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                  ? 'bg-[#0b0c0b] hover:bg-[#252525] text-white'
+                  : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200'
             }`}
           >
             <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
@@ -391,8 +334,8 @@ function AppContent() {
             }}
             className={`px-3 py-1 rounded flex items-center transition-all duration-200 ${
               theme === 'dark'
-                ? 'bg-[#1a1a1a] hover:bg-[#252525] text-white'
-                : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                ? 'bg-[#0b0c0b] hover:bg-[#252525] text-white'
+                : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200'
             }`}
             disabled={loading}
           >
@@ -428,7 +371,9 @@ function AppContent() {
                   <div 
                     key={server.id} 
                     className={`server-card p-4 w-full transform transition-all duration-300 ease-in-out ${
-                      theme === 'dark' ? 'bg-[#1a1a1a]' : 'bg-white'
+                      theme === 'dark' 
+                        ? 'bg-[#0b0c0b]' 
+                        : 'bg-white shadow-sm hover:shadow-md border border-gray-200'
                     }`}
                   >
                     <div className="flex flex-col">
@@ -440,7 +385,7 @@ function AppContent() {
                               alt={server.name} 
                               className="w-16 h-16 rounded"
                               onError={(e) => {
-                                e.currentTarget.src = '/logo.png'
+                                e.currentTarget.src = logoImage
                               }}
                             />
                             <div className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full ${
@@ -470,7 +415,7 @@ function AppContent() {
                                         <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                                       </svg>
                                     ) : (
-                                      // Плюсик для добавления в избранное
+                                      // Плюсик для обавления в избранное
                                       <svg 
                                         className="w-5 h-5 transition-transform duration-300" 
                                         fill="none" 
@@ -526,8 +471,8 @@ function AppContent() {
                             onClick={() => openInBrowser(server.url)}
                             className={`px-3 py-1 rounded transition-colors duration-200 ${
                               theme === 'dark'
-                                ? 'bg-[#0b0c0b] hover:bg-[#1a1a1a] text-white'
-                                : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                                ? 'bg-[#0b0c0b] hover:bg-[#252525] text-white'
+                                : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200'
                             }`}
                           >
                             View
@@ -536,8 +481,8 @@ function AppContent() {
                             onClick={() => openInBrowser(`https://osu-server-list.com/server/${server.safe_name}/vote`)}
                             className={`px-3 py-1 rounded transition-colors duration-200 ${
                               theme === 'dark'
-                                ? 'bg-[#0b0c0b] hover:bg-[#1a1a1a] text-white'
-                                : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                                ? 'bg-[#0b0c0b] hover:bg-[#252525] text-white'
+                                : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200'
                             }`}
                           >
                             Vote
@@ -562,7 +507,9 @@ function AppContent() {
         </div>
 
         {/* Нижняя панель */}
-        <div className="fixed bottom-0 left-0 right-0 h-[60px] flex items-center justify-between px-4 bottom-panel border-t">
+        <div className={`fixed bottom-0 left-0 right-0 h-[60px] flex items-center justify-between px-4 ${
+          theme === 'dark' ? 'bg-[#0b0c0b]' : 'bg-white'
+        } border-t border-custom`}>
           <div className="flex items-center ml-64">
             {selectedServerDetails && (
               <div className="flex items-center">
@@ -571,7 +518,7 @@ function AppContent() {
                   alt={selectedServerDetails.name}
                   className="w-8 h-8 rounded mr-3"
                   onError={(e) => {
-                    e.currentTarget.src = '/logo.png'
+                    e.currentTarget.src = logoImage
                   }}
                 />
                 <div className="flex flex-col">
@@ -597,8 +544,8 @@ function AppContent() {
                 !osuPath 
                   ? 'bg-red-500 hover:bg-red-600 text-white' 
                   : theme === 'dark'
-                    ? 'bg-[#1a1a1a] hover:bg-[#252525] text-white'
-                    : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                    ? 'bg-[#0b0c0b] hover:bg-[#252525] text-white'
+                    : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200'
               }`}
             >
               <svg 
@@ -621,8 +568,8 @@ function AppContent() {
                 selectedServerDetails
                   ? 'bg-[#6528F7] hover:bg-[#5020C9] text-white'
                   : theme === 'dark'
-                    ? 'bg-[#1a1a1a] text-gray-600'
-                    : 'bg-gray-100 text-gray-400'
+                    ? 'bg-[#0b0c0b] text-gray-600'
+                    : 'bg-gray-100 text-gray-400 border border-gray-200'
               }`}
               disabled={!selectedServerDetails}
               onClick={handleLaunch}
@@ -646,12 +593,6 @@ function AppContent() {
           setFavoritesSort={setFavoritesSort}
           autoClose={autoClose}
           setAutoClose={setAutoClose}
-        />
-
-        <PlaytimeStats 
-          isOpen={isStatsOpen}
-          onClose={() => setIsStatsOpen(false)}
-          isSessionActive={isSessionActive}
         />
 
         <FAQ 
